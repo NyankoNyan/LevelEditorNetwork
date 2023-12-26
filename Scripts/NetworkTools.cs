@@ -117,6 +117,72 @@ namespace Level.API.Network
             }
         }
 
+        public static void ListSerialize<T, B>(BufferSerializer<B> serializer, ref List<T> value)
+            where B : IReaderWriter
+            where T : INetworkSerializable, new()
+        {
+            if (serializer.IsReader) {
+                var reader = serializer.GetFastBufferReader();
+                reader.ReadValueSafe(out int count);
+                if (count == -1) {
+                    value = null;
+                } else {
+                    value = new List<T>();
+                    for (int i = 0; i < count; i++) {
+                        reader.ReadValueSafe(out T elem);
+                        value.Add(elem);
+                    }
+                }
+
+            } else if (serializer.IsWriter) {
+                var writer = serializer.GetFastBufferWriter();
+                if (value == null) {
+                    writer.WriteValueSafe(-1);
+                } else {
+                    writer.WriteValueSafe(value.Count);
+                    for (int i = 0; i < value.Count; i++) {
+                        writer.WriteValueSafe(value[i]);
+                    }
+                }
+            }
+        }
+
+        public delegate void SerializeMethod<T, B>(BufferSerializer<B> serializer, ref T value)
+            where B : IReaderWriter
+            where T : new();
+
+        public static void ListSerialize<T, B>(BufferSerializer<B> serializer, ref List<T> value, SerializeMethod<T, B> serializeMethod)
+            where B : IReaderWriter
+            where T : new()
+        {
+            T elem = default;
+            if (serializer.IsReader) {
+                var reader = serializer.GetFastBufferReader();
+                reader.ReadValueSafe(out int count);
+                if (count == -1) {
+                    value = null;
+                } else {
+                    value = new List<T>();
+                    for (int i = 0; i < count; i++) {
+                        serializeMethod(serializer, ref elem);
+                        value.Add(elem);
+                    }
+                }
+
+            } else if (serializer.IsWriter) {
+                var writer = serializer.GetFastBufferWriter();
+                if (value == null) {
+                    writer.WriteValueSafe(-1);
+                } else {
+                    writer.WriteValueSafe(value.Count);
+                    for (int i = 0; i < value.Count; i++) {
+                        elem = value[i];
+                        serializeMethod(serializer, ref elem);
+                    }
+                }
+            }
+        }
+
         public static void SerializeValue<T, B>(this BufferSerializer<B> serializer, ref List<T> value, bool ignoreNull)
             where B : IReaderWriter
             where T : INetworkSerializable, new()

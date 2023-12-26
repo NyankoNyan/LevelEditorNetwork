@@ -9,7 +9,7 @@ namespace Level.API.Network
 {
 
     public delegate void BlockProtoRequestCallback(IEnumerable<BlockProtoInfo> blockProtos);
-    public delegate void BlockProtoModifyCallback(IEnumerable<string> errors);
+    public delegate void ErrorReceiveCallback(IEnumerable<string> errors);
     public delegate void GridSettingsRequestCallback(IEnumerable<GridSettingsInfo> gridSettings);
     public delegate void GridStateRequestCallback(IEnumerable<GridStateInfo> gridStates);
 
@@ -120,7 +120,7 @@ namespace Level.API.Network
         #region Blocks: change block's protos from client
 
         public void BlockProtoModifyRequest(
-            BlockProtoModifyCallback callback,
+            ErrorReceiveCallback callback,
             IEnumerable<BlockProtoInfo> changed = null,
             IEnumerable<BlockProtoInfo> added = null,
             uint[] removed = null)
@@ -185,7 +185,7 @@ namespace Level.API.Network
         [ClientRpc]
         private void BlockProtoModifyResponceClientRpc(ulong requestId, StringListWrap errors, ClientRpcParams clientRpcParams)
         {
-            var callback = (BlockProtoModifyCallback)PopCallback(requestId);
+            var callback = (ErrorReceiveCallback)PopCallback(requestId);
             callback?.Invoke(errors.Values);
         }
         #endregion
@@ -195,18 +195,142 @@ namespace Level.API.Network
         #region GridSettings: request list from client
         public void AllGridSettingsRequest(GridSettingsRequestCallback callback)
         {
-
-
+            AllGridSettingsRequestServerRpc(PushRequest(callback));
         }
 
         [ServerRpc]
-        private void AllGridSettingsRequestServerRpc(ulong requestId, ServerRpcParams serverRpcParams = default){
-
+        private void AllGridSettingsRequestServerRpc(ulong requestId, ServerRpcParams serverRpcParams = default)
+        {
+            AllGridSettingsResponseClientRpc(
+                requestId,
+                _levelStorage.API.GridSettingsCollection.Select(x => (GridSettingsInfoSerialize)x.Info).ToArray(),
+                NetworkTools.ResponceClient(serverRpcParams)
+            );
         }
 
         [ClientRpc]
-        private void AllGridSettingsResponceClientRpc(ulong requestId, ClientRpcParams clientRpcParams){
+        private void AllGridSettingsResponseClientRpc(ulong requestId, GridSettingsInfoSerialize[] data, ClientRpcParams clientRpcParams)
+        {
+            var callback = (GridSettingsRequestCallback)PopCallback(requestId);
+            callback?.Invoke(data.Select(x => (GridSettingsInfo)x));
+        }
 
+        public void GridSettingsRequestAndAdd()
+        {
+            AllGridSettingsRequest(gridInfos => {
+                foreach (var gridInfo in gridInfos) {
+                    _levelStorage.API.GridSettingsCollection.Add(gridInfo.content, gridInfo.id);
+                }
+            });
+        }
+        #endregion
+
+        #region GridSettings: partial changes
+        public void GridSettingsChangesSend(
+            IEnumerable<GridSettingsInfo> add = null,
+            IEnumerable<GridSettingsInfo> change = null,
+            uint[] remove = null)
+        {
+            GridSettingsChangesClientRpc(
+                new() {
+                    add = add.Select(x => (GridSettingsInfoSerialize)x).ToArray(),
+                    change = change.Select(x => (GridSettingsInfoSerialize)x).ToArray()
+                },
+                remove
+            );
+        }
+
+        [ClientRpc]
+        private void GridSettingsChangesClientRpc(ContentChangeInfo<GridSettingsInfoSerialize> changes, uint[] remove)
+        {
+            foreach (var id in remove) {
+                _levelStorage.API.GridSettingsCollection.Remove(id);
+            }
+
+            foreach (GridSettingsInfo info in changes.add) {
+                var gridSettings = _levelStorage.API.GridSettingsCollection[info.id];
+                gridSettings.Settings = info.content;
+            }
+
+            foreach (GridSettingsInfo info in changes.change) {
+                _levelStorage.API.GridSettingsCollection.Add(info.content, info.id);
+            }
+        }
+
+        public void GridSettingsModifyRequest(
+            ErrorReceiveCallback callback,
+            IEnumerable<GridSettingsInfo> add = null,
+            IEnumerable<GridSettingsInfo> change = null,
+            uint[] remove = null)
+        {
+            GridSettingsModifyServerRpc(
+                PushRequest(callback),
+                new() {
+                    add = add.Select(x => (GridSettingsInfoSerialize)x).ToArray(),
+                    change = change.Select(x => (GridSettingsInfoSerialize)x).ToArray()
+                },
+                remove
+            );
+        }
+
+        [ServerRpc]
+        private void GridSettingsModifyServerRpc(ulong requestId,
+                                                 ContentChangeInfo<GridSettingsInfoSerialize> changes,
+                                                 uint[] remove,
+                                                 ServerRpcParams serverRpcParams = default)
+        {
+            List<string> errors = new();
+            List<uint> removeComplete = null;
+            if (remove != null) {
+                removeComplete = new();
+                foreach (var id in remove) {
+                    try {
+                        _levelStorage.API.GridSettingsCollection.Remove(id);
+                        removeComplete.Add(id);
+                    } catch (LevelAPIException e) {
+                        errors.Add(e.Message);
+                    }
+                }
+            }
+
+            List<GridSettingsInfo> addComplete = null;
+            if (changes.add != null) {
+                addComplete = new();
+                foreach (GridSettingsInfo info in changes.add) {
+                    GridSettings gridSettings;
+                    try {
+                        gridSettings = _levelStorage.API.GridSettingsCollection.Add(info.content);
+                    } catch (LevelAPIException e) {
+                        errors.Add(e.Message);
+                        continue;
+                    }
+                    addComplete.Add(gridSettings.Info);
+                }
+            }
+
+            List<GridSettingsInfo> changeComplete = null;
+            if (changes.change != null) {
+                changeComplete = new();
+                foreach (GridSettingsInfo info in changes.change) {
+                    try {
+                        var gridSettings = _levelStorage.API.GridSettingsCollection[info.id];
+                        gridSettings.Settings = info.content;
+                    } catch (LevelAPIException e) {
+                        errors.Add(e.Message);
+                        continue;
+                    }
+                    changeComplete.Add(info);
+                }
+            }
+            GridSettingsChangesSend(addComplete, changeComplete, removeComplete.ToArray());
+            GridSettingsModifyResponceClientRpc(requestId, new StringListWrap(errors.ToArray()), NetworkTools.ResponceClient(serverRpcParams));
+        }
+
+        [ClientRpc]
+        private void GridSettingsModifyResponceClientRpc(ulong requestId, StringListWrap errors, ClientRpcParams clientRpcParams)
+        {
+            var callback = (ErrorReceiveCallback)PopCallback(requestId);
+            callback(errors.Values);
         }
         #endregion
         #endregion GridSettings
