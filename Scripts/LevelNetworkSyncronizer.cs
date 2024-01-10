@@ -7,7 +7,6 @@ using System.Linq;
 
 namespace Level.API.Network
 {
-
     public delegate void BlockProtoRequestCallback(IEnumerable<BlockProtoInfo> blockProtos);
     public delegate void ErrorReceiveCallback(IEnumerable<string> errors);
     public delegate void GridSettingsRequestCallback(IEnumerable<GridSettingsInfo> gridSettings);
@@ -334,6 +333,10 @@ namespace Level.API.Network
         }
         #endregion
         #endregion GridSettings
+
+        #region GridState
+        
+        #endregion GridState
 
     }
 }
