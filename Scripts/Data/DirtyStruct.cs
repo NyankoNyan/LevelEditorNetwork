@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections;
+using System.Linq;
 
 namespace LevelNet.Data
 {
@@ -8,6 +9,14 @@ namespace LevelNet.Data
         private BitArray _dirtyFields;
         private DirtyArray[] _arrays;
         private DirtyList[] _lists;
+        private bool _dirtyAll;
+
+        public BitArray DirtyFields {
+            get => _dirtyFields;
+            set {
+                _dirtyFields = value;
+            }
+        }
 
         public DirtyStruct(Type type)
         {
@@ -91,6 +100,22 @@ namespace LevelNet.Data
                     _lists[info.arrayIndex].Init(info.fieldInfo.GetValue(data));
                 }
             }
+        }
+
+        public float GetDirtnessRatio()
+        {
+            int trues = 0;
+            foreach(bool val in _dirtyFields) {
+                if (val) {
+                    trues++;
+                }
+            }
+            return trues / (float)_dirtyFields.Count;
+        }
+
+        internal void SetDirtyAll()
+        {
+            _dirtyAll = true;
         }
     }
 }

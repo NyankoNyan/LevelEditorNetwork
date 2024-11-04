@@ -1,79 +1,39 @@
-﻿using System;
 using LevelNet.Data;
-using LevelView;
+
 using UnityEngine;
-
-namespace LevelNet
-{
-    public class NetEventException : Exception
-    {
-        public NetEventException(string message):base(message) { }
-    }
-
-    public class DataCreatedEventArgs
-    {
-
-    }
-    public interface INetEvents
-    {
-        delegate void StartAsServerDelegate();
-        delegate void StartAsClientDelegate();
-        delegate void DataCreatedDelegate(DataCreatedEventArgs args);
-        bool IsOnline { get; }
-        bool IsServer { get; }
-
-        StartAsServerDelegate OnStartAsServer { get; set; }
-        StartAsClientDelegate OnStartAsClient { get; set; }
-        DataCreatedDelegate OnDataCreated { get; set; }
-
-        void StartDataReceiver();
-
-        void RegDataContainer(SyncDataContainer dataContainer);
-    }
-
-
-
-    public static class NetEventsFabric
-    {
-        private static INetEvents _netEvents;
-
-        public static INetEvents Create() => _netEvents ??= new Netcode.NetcodeEvents();
-    }
-}
-
-namespace LevelNet.Netcode
-{
-}
 
 namespace LevelNet.Tests
 {
     public class GameInitializer : MonoBehaviour
     {
+        private INetEvents netEvents;
+
         private void Start()
         {
-            Init();
         }
 
-        private void Init()
+        private void Update()
         {
-            INetEvents netEvents = NetEventsFabric.Create();
-            if (netEvents.IsOnline)
-            {
+            if (netEvents != null) {
+                netEvents.NetSendTick();
+            }
+        }
+
+        public void Init()
+        {
+            netEvents = NetEventsFabric.Create();
+            if (netEvents.IsOnline) {
+                if (netEvents.IsClient) {
+                    netEvents.OnDataCreated = (args) => SyncView(args.container);
+                    netEvents.StartDataReceiver();
+                }
                 if (netEvents.IsServer) {
                     CreateData();
                 }
-                else
-                {
-                    netEvents.OnDataCreated = (args) => SyncView();
-                    netEvents.StartDataReceiver();
-                }
-            }
-            else
-            {
-                netEvents.OnStartAsServer = ()=> CreateData();
-                netEvents.OnStartAsClient = () =>
-                {
-                    netEvents.OnDataCreated = (args) => SyncView();
+            } else {
+                netEvents.OnStartAsServer = () => CreateData();
+                netEvents.OnStartAsClient = () => {
+                    netEvents.OnDataCreated = (args) => SyncView(args.container);
                     netEvents.StartDataReceiver();
                 };
             }
@@ -81,12 +41,31 @@ namespace LevelNet.Tests
 
         private void CreateData()
         {
+            var container = SyncContainerManager.ServerInstance.CreateOnServer();
+            GameBlocksState blockState = new() {
+                size = new Vector2Int(2, 2),
+                colors = ColorsArray(4, Color.white)
+            };
+            container.SetupData(blockState);
 
+            static Color[] ColorsArray(int size, Color color)
+            {
+                Color[] colors = new Color[size];
+                for (int i = 0; i < size; i++) {
+                    colors[i] = color;
+                }
+                return colors;
+            }
         }
 
-        private void SyncView()
+        private void SyncView(SyncDataContainer container)
         {
-
+            if (container.ClientState is GameBlocksState gameBlocksState) {
+                var view = GameObject.FindAnyObjectByType<GameBlocksView>();
+                view.InitData(container);
+            } else {
+                throw new System.Exception($"Unknown data type on client {container.ClientState.GetType().FullName}");
+            }
         }
 
     }

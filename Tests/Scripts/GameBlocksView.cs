@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -9,7 +10,8 @@ namespace LevelNet.Data
 {
     public struct DataChangeElement
     {
-        public IComponent component;
+        public string name;
+
         public object value;
     }
 
@@ -38,6 +40,8 @@ namespace LevelNet.Data
         public event OnDestroyDelegate OnDestroy;
 
         public void ChangeRequest(string name, object value);
+
+        public object Current { get; }
     }
 
     public interface IDataFabric
@@ -59,14 +63,11 @@ namespace LevelNet.Netcode
     //    public IData Create(Type type)
     //    {
     //        var typeInfo = type.GetTypeInfo();
-    //        foreach (var member in typeInfo.DeclaredMembers)
-    //        {
-    //            if (member.MemberType == MemberTypes.Field)
-    //            {
+    //        foreach (var member in typeInfo.DeclaredMembers) {
+    //            if (member.MemberType == MemberTypes.Field) {
     //                var field = (FieldInfo)member;
     //                var activeC = field.CustomAttributes.SingleOrDefault(a => a.AttributeType == typeof(ActiveComponentAttribute));
-    //                if (activeC != null)
-    //                {
+    //                if (activeC != null) {
     //                }
     //            }
     //        }
@@ -86,15 +87,20 @@ namespace LevelNet.Netcode
 
     //internal class Data : IData
     //{
-    //    public IEnumerable<IComponent> Components => throw new NotImplementedException();
-
     //    public event IData.OnDataChangeDelegate OnDataChange;
 
     //    public event IData.OnDestroyDelegate OnDestroy;
 
+    //    private SyncDataContainer _container;
+
+    //    public Data(SyncDataContainer container)
+    //    {
+    //        _container = container;
+    //    }
+
     //    public void ChangeRequest(string name, object value)
     //    {
-    //        throw new NotImplementedException();
+    //        _container.ChangeData(name, value);
     //    }
     //}
 
@@ -133,24 +139,6 @@ namespace LevelNet.Netcode
     //        _write = write;
     //    }
     //}
-
-    public enum BaseTypes
-    {
-        BYTE = 128,
-        SHORT,
-        INT,
-        FLOAT,
-        DOUBLE,
-        VEC2,
-        VEC3,
-        VEC4,
-        VEC2I,
-        VEC3I,
-        QUATERNION,
-        BOOL,
-        ARRAY,
-        NULL
-    }
 }
 
 namespace LevelNet.Tests
@@ -173,8 +161,7 @@ namespace LevelNet.Tests
 
         public object Clone()
         {
-            return new GameBlocksState()
-            {
+            return new GameBlocksState() {
                 size = size,
                 colors = (Color[])colors.Clone()
             };
@@ -226,10 +213,8 @@ namespace LevelNet.Tests
             _currentSize = size;
 
             int counter = 0;
-            for (int x = 0; x < size.x; x++)
-            {
-                for (int y = 0; y < size.y; y++)
-                {
+            for (int x = 0; x < size.x; x++) {
+                for (int y = 0; y < size.y; y++) {
                     var block = Instantiate(_blockPrefab, transform);
                     block.transform.SetLocalPositionAndRotation(
                         new Vector3(
@@ -247,31 +232,24 @@ namespace LevelNet.Tests
 
         public void ChangeBlockColor(Vector2Int coord, Color color)
         {
-            if (_colorChanges.ContainsKey(coord))
-            {
+            if (_colorChanges.ContainsKey(coord)) {
                 _colorChanges[coord] = color;
-            }
-            else
-            {
+            } else {
                 _colorChanges.Add(coord, color);
             }
         }
 
         private void ProcessColorChange(float deltaTime)
         {
-            foreach (var key in _colorChanges.Keys.ToArray())
-            {
+            foreach (var key in _colorChanges.Keys.ToArray()) {
                 Color targetColor = _colorChanges[key];
                 GameObject block = _blocks[key];
                 Color newColor = Color.Lerp(block.GetComponent<Renderer>().material.color, targetColor, deltaTime * _colorChangeSpeed);
                 Color delta = newColor - targetColor;
                 float distance = Mathf.Abs(delta.r) + Mathf.Abs(delta.g) + Mathf.Abs(delta.b);
-                if (distance > 0.01f)
-                {
+                if (distance > 0.01f) {
                     block.GetComponent<Renderer>().material.color = newColor;
-                }
-                else
-                {
+                } else {
                     block.GetComponent<Renderer>().material.color = targetColor;
                     _colorChanges.Remove(key);
                 }
@@ -280,8 +258,7 @@ namespace LevelNet.Tests
 
         private void DeleteBlocks()
         {
-            foreach (var block in _blocks.Values.ToArray())
-            {
+            foreach (var block in _blocks.Values.ToArray()) {
                 Destroy(block);
             }
 
@@ -298,18 +275,19 @@ namespace LevelNet.Tests
             IData.OnDataChangeDelegate onDataChange = null;
             IData.OnDestroyDelegate onDestroy = null;
 
-            onDataChange = (info) =>
-            {
+            onDataChange = (info) => {
             };
 
-            onDestroy = () =>
-            {
+            onDestroy = () => {
                 data.OnDataChange -= onDataChange;
                 data.OnDestroy -= onDestroy;
             };
 
             data.OnDataChange += onDataChange;
             data.OnDestroy += onDestroy;
+
+            var blocksState = (GameBlocksState)data.Current;
+            InitBlocks(blocksState.size, blocksState.colors);
         }
 
         public void Click(GameObject target)
@@ -317,8 +295,7 @@ namespace LevelNet.Tests
             Regex regex = new(@"Block_(\d+)_(\d+)");
 
             var match = regex.Match(target.name);
-            if (match.Success)
-            {
+            if (match.Success) {
                 Vector2Int coord = new(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value));
                 _data.ChangeRequest($"Color/{Index2DToPlain(coord)}", _paintColor);
             }
@@ -326,8 +303,7 @@ namespace LevelNet.Tests
 
         private int Index2DToPlain(Vector2Int coord)
         {
-            if (coord.x >= _currentSize.x || coord.y >= _currentSize.y)
-            {
+            if (coord.x >= _currentSize.x || coord.y >= _currentSize.y) {
                 throw new ArgumentException(coord.ToString());
             }
             return coord.y * _currentSize.x + coord.x;

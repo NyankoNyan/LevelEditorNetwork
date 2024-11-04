@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 
 namespace LevelNet.Data
@@ -8,9 +8,28 @@ namespace LevelNet.Data
         private bool _fullChange;
         private BitArray _elements;
 
+        public bool IsFullChanged => _fullChange;
+        public BitArray Flags {
+            get => _elements;
+            set {
+                _elements = value;
+            }
+        }
+
         public void ApplyChanges()
         {
-            throw new NotImplementedException();
+            _elements.SetAll(false);
+        }
+
+        public float GetDirtnessRatio()
+        {
+            int trues = 0;
+            for(int i=0;i< _elements.Count; i++) {
+                if (_elements[i]) {
+                    trues++;
+                }
+            }
+            return trues / (float)_elements.Count;
         }
 
         public void RejectChanges()

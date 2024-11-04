@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LevelNet.Data
@@ -8,6 +8,11 @@ namespace LevelNet.Data
         private List<byte> _statuses = new();
 
         public void ApplyChanges()
+        {
+            throw new NotImplementedException();
+        }
+
+        public float GetDirtnessRatio()
         {
             throw new NotImplementedException();
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Unity.VisualScripting;
@@ -12,6 +12,8 @@ namespace LevelNet.Data
         public int fieldIndex;
         public int arrayIndex;
         public int listIndex;
+        public string name;
+
         public readonly bool IsList => listIndex >= 0;
         public readonly bool IsArray => arrayIndex >= 0;
         public readonly bool IsPartial => IsList || IsArray;
@@ -52,7 +54,8 @@ namespace LevelNet.Data
                     fieldInfo = fieldInfo,
                     fieldIndex = _infos.Count,
                     arrayIndex = -1,
-                    listIndex = -1
+                    listIndex = -1,
+                    name = syncComponent.name
                 };
                 if (syncComponent.partial)
                 {

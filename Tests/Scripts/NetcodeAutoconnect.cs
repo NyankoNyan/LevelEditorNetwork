@@ -28,6 +28,7 @@ namespace LevelNet.Tests
         private void Start()
         {
             Init();
+            FindAnyObjectByType<GameInitializer>().Init();
         }
 
 #if UNITY_EDITOR

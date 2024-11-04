@@ -1,4 +1,4 @@
-﻿namespace LevelNet.Data
+namespace LevelNet.Data
 {
     public class DirtyFlags : IDirtyCollection
     {
@@ -23,5 +23,7 @@
         {
             _isDirty = true;
         }
+
+        public float GetDirtnessRatio() => _root.GetDirtnessRatio();
     }
 }

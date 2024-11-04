@@ -1,6 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
+
+using LevelNet.Data;
+
 using Unity.Netcode;
 using Unity.SharpZipLib.GZip;
 
@@ -9,6 +12,8 @@ namespace LevelNet.Netcode
     public class CompressedData
     {
         private object _data;
+
+        public object Data => _data;
 
         public CompressedData(object data)
         {
@@ -22,12 +27,9 @@ namespace LevelNet.Netcode
 
         public override string ToString()
         {
-            if (_data != null)
-            {
+            if (_data != null) {
                 return _data.ToString();
-            }
-            else
-            {
+            } else {
                 return "null";
             }
         }
@@ -39,7 +41,7 @@ namespace LevelNet.Netcode
             byte[] zipData = new byte[zipDataSize];
             packedReader.ReadBytesSafe(ref zipData, zipDataSize);
 
-            byte[] unpackedData = UnpackData(zipData);
+            byte[] unpackedData = Compress.Unpack(zipData);
             zipData = null;
 
             // Deserialize data as usuial
@@ -47,7 +49,87 @@ namespace LevelNet.Netcode
             _data = NetcodeStaticSerializer.Instance.Deserialize(unpackedReader);
         }
 
-        private static byte[] UnpackData(byte[] zipData)
+        public void Write(FastBufferWriter packedWriter)
+        {
+            FastBufferWriter unpackedWriter = new(1024, Unity.Collections.Allocator.Temp, 65536);
+            NetcodeStaticSerializer.Instance.Serialize(_data, unpackedWriter);
+            byte[] unpackedData = unpackedWriter.ToArray();
+            byte[] packedData = Compress.Pack(unpackedData);
+
+            packedWriter.WriteValueSafe(packedData.Length);
+            packedWriter.WriteBytesSafe(packedData);
+        }
+    }
+
+    public class CompressedContainerChanges
+    {
+        private SyncDataContainer _container;
+        private bool _asServer;
+        private byte[] _unpackedData;
+
+        private CompressedContainerChanges()
+        { }
+
+        public static CompressedContainerChanges CreateForReading(FastBufferReader packedReader)
+        {
+            CompressedContainerChanges data = new();
+            data.Read(packedReader);
+            return data;
+        }
+
+        public static CompressedContainerChanges CreateForWriting(SyncDataContainer container, bool asServer)
+        {
+            return new() {
+                _container = container,
+                _asServer = asServer
+            };
+        }
+
+        public void SyncContainer(SyncDataContainer container, bool asServer)
+        {
+            // Deserialize data as usuial
+            FastBufferReader unpackedReader = new(_unpackedData, Unity.Collections.Allocator.Temp, _unpackedData.Length, 0);
+            NetcodeStaticSerializer.Instance.PartialDeserialize(asServer ? container.ServerState : container.ClientState, container.DirtyFlags, unpackedReader);
+        }
+
+        private void Read(FastBufferReader packedReader)
+        {
+            // Read zip data
+            packedReader.ReadValueSafe(out int zipDataSize);
+            byte[] zipData = new byte[zipDataSize];
+            packedReader.ReadBytesSafe(ref zipData, zipDataSize);
+
+            _unpackedData = Compress.Unpack(zipData);
+        }
+
+        public void Write(FastBufferWriter packedWriter)
+        {
+            FastBufferWriter unpackedWriter = new(1024, Unity.Collections.Allocator.Temp, 65536);
+            NetcodeStaticSerializer.Instance.PartialSerialize(_asServer ? _container.ServerState : _container.ClientState, _container.DirtyFlags, unpackedWriter);
+            byte[] unpackedData = unpackedWriter.ToArray();
+            byte[] packedData = Compress.Pack(unpackedData);
+
+            packedWriter.WriteValueSafe(packedData.Length);
+            packedWriter.WriteBytesSafe(packedData);
+        }
+    }
+
+    public static class CompressedContainerChangesNetcodeExtension
+    {
+        public static void ReadValueSafe(this FastBufferReader reader, out CompressedContainerChanges data)
+        {
+            data = CompressedContainerChanges.CreateForReading(reader);
+        }
+
+        public static void WriteValueSafe(this FastBufferWriter writer, in CompressedContainerChanges data)
+        {
+            data.Write(writer);
+        }
+    }
+
+    public static class Compress
+    {
+        public static byte[] Unpack(byte[] zipData)
         {
             const int bufferSize = 1024;
 
@@ -57,18 +139,12 @@ namespace LevelNet.Netcode
             List<byte[]> unpackedParts = new();
 
             // Unzip data
-            using (var ms = new MemoryStream(zipData))
-            {
-                using (GZipInputStream inputStream = new(ms))
-                {
-                    while ((readLen = inputStream.Read(buffer)) > 0)
-                    {
-                        if (readLen == bufferSize)
-                        {
+            using (var ms = new MemoryStream(zipData)) {
+                using (GZipInputStream inputStream = new(ms)) {
+                    while ((readLen = inputStream.Read(buffer)) > 0) {
+                        if (readLen == bufferSize) {
                             unpackedParts.Add(buffer);
-                        }
-                        else
-                        {
+                        } else {
                             byte[] lastPart = new byte[readLen];
                             Array.Copy(buffer, lastPart, readLen);
                             unpackedParts.Add(lastPart);
@@ -81,8 +157,7 @@ namespace LevelNet.Netcode
             // Merge unziped data parts
             byte[] unpackedData = new byte[totalReadSize];
             int currentSize = 0;
-            foreach (var dataPart in unpackedParts)
-            {
+            foreach (var dataPart in unpackedParts) {
                 Array.Copy(dataPart, 0, unpackedData, currentSize, dataPart.Length);
                 currentSize += dataPart.Length;
             }
@@ -90,25 +165,14 @@ namespace LevelNet.Netcode
             return unpackedData;
         }
 
-        public void Write(FastBufferWriter packedWriter)
+        public static byte[] Pack(byte[] data)
         {
-            // Serialize data without compression
-            FastBufferWriter unpackedWriter = new(1024, Unity.Collections.Allocator.Temp, 65536);
-            NetcodeStaticSerializer.Instance.Serialize(_data, unpackedWriter);
-            byte[] unpackedData = unpackedWriter.ToArray();
-            byte[] packedData = null;
-
-            using (MemoryStream ms = new MemoryStream())
-            {
-                using (GZipOutputStream outStream = new GZipOutputStream(ms))
-                {
-                    outStream.Write(unpackedData, 0, unpackedData.Length);
+            using (MemoryStream ms = new MemoryStream()) {
+                using (GZipOutputStream outStream = new GZipOutputStream(ms)) {
+                    outStream.Write(data, 0, data.Length);
                 }
-                packedData = ms.ToArray();
+                return ms.ToArray();
             }
-
-            packedWriter.WriteValueSafe(packedData.Length);
-            packedWriter.WriteBytesSafe(packedData);
         }
     }
 }
