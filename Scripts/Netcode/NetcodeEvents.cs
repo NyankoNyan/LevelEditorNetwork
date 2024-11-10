@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 using LevelNet.Data;
@@ -12,7 +13,10 @@ namespace LevelNet.Netcode
         private ulong _id;
 
         public ulong Id => _id;
-        public bool IsNew { get; set; }
+        public bool IsNew { 
+            get; 
+            set; 
+        }
 
         public ClientState(ulong id)
         {
@@ -23,7 +27,7 @@ namespace LevelNet.Netcode
 
     public class NetcodeEvents : INetEvents
     {
-        public bool IsOnline => NetworkManager.Singleton.IsServer || NetworkManager.Singleton.IsClient;
+        public bool IsOnline => NetworkManager.Singleton.IsServer || ( NetworkManager.Singleton.IsClient && NetworkManager.Singleton.IsConnectedClient);
 
         public bool IsServer => NetworkManager.Singleton.IsServer;
 
@@ -32,6 +36,8 @@ namespace LevelNet.Netcode
         public INetEvents.StartAsServerDelegate OnStartAsServer { get; set; }
         public INetEvents.StartAsClientDelegate OnStartAsClient { get; set; }
         public INetEvents.DataCreatedDelegate OnDataCreated { get; set; }
+
+        public ulong ClientId => NetworkManager.Singleton.LocalClientId;
 
         private bool _enableDataReceiver;
 
@@ -49,10 +55,14 @@ namespace LevelNet.Netcode
         internal NetcodeEvents()
         {
             var netMan = NetworkManager.Singleton;
-            netMan.OnServerStarted += () => OnStartAsServer?.Invoke();
-            netMan.OnClientStarted += () => OnStartAsClient?.Invoke();
+            //netMan.OnServerStarted += () => OnStartAsServer?.Invoke();
+            //netMan.OnClientStarted += () => OnStartAsClient?.Invoke();
+
+            //netMan.OnServerStarted += () => UnityEngine.Debug.Log("Server started");
 
             netMan.OnClientConnectedCallback += (id) => {
+                if (!IsServer)
+                    return;
                 _srvClients.Add(new(id));
                 _srvHasNewClient = true;
             };
@@ -62,7 +72,21 @@ namespace LevelNet.Netcode
             }
 
             netMan.OnClientDisconnectCallback += (id) => {
+                if (!IsServer)
+                    return;
                 _srvClients.Remove(_srvClients.Single(c => c.Id == id));
+            };
+
+            netMan.OnConnectionEvent += (nm, args) =>
+            {
+                if(args.EventType == ConnectionEvent.ClientConnected && args.ClientId == ClientId)
+                {
+                    if (IsClient)
+                    {
+                        OnStartAsClient?.Invoke();
+                    }
+                }
+                
             };
         }
 
@@ -79,6 +103,12 @@ namespace LevelNet.Netcode
                 SendContainersToOldClients();
                 SendContainersToNewClients();
                 SendChangesToClients();
+
+                foreach (var clientState in _srvClients.Where(c => c.IsNew))
+                {
+                    clientState.IsNew = false;
+                }
+                _srvNewContainers.Clear();
             }
         }
 
@@ -117,6 +147,7 @@ namespace LevelNet.Netcode
                 DataTransferPoint.Instance.SendDataToClients_ClientRpc(new(container.ServerState), container.Id, rpcParams);
                 container.DirtyFlags.ApplyChanges();
             }
+
         }
 
         private void SendContainersToOldClients()
@@ -139,7 +170,7 @@ namespace LevelNet.Netcode
                 container.DirtyFlags.ApplyChanges();
             }
 
-            _srvNewContainers.Clear();
+            
         }
 
         private void SendContainersUpdatesToServer()

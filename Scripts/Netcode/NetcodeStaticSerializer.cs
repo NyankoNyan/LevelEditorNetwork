@@ -350,6 +350,7 @@ namespace LevelNet.Netcode
             Type mainType = ReadTypeId(reader);
 
             PartialDeserializeVariable(data, mainType, reader, dirtyFlags.Root);
+            dirtyFlags.SetDirty();
         }
 
         private static Type ReadTypeId(FastBufferReader reader)

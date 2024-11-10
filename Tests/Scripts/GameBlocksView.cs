@@ -11,22 +11,12 @@ namespace LevelNet.Data
     public struct DataChangeElement
     {
         public string name;
-
         public object value;
     }
 
     public class DataChangeInfo
     {
         public IEnumerable<DataChangeElement> dataChangeElements;
-    }
-
-    public interface IComponent
-    {
-        public bool IsReadable { get; }
-        public bool IsWritable { get; }
-        public string Name { get; }
-        public bool IsPartial { get; }
-        public IEnumerable<IComponent> Components { get; }
     }
 
     public interface IData
@@ -43,102 +33,6 @@ namespace LevelNet.Data
 
         public object Current { get; }
     }
-
-    public interface IDataFabric
-    {
-        IData Create(Type type);
-    }
-
-    public enum SyncUpdateRule
-    {
-        AsClient,
-        AsServer
-    }
-}
-
-namespace LevelNet.Netcode
-{
-    //public class DataFabric : IDataFabric
-    //{
-    //    public IData Create(Type type)
-    //    {
-    //        var typeInfo = type.GetTypeInfo();
-    //        foreach (var member in typeInfo.DeclaredMembers) {
-    //            if (member.MemberType == MemberTypes.Field) {
-    //                var field = (FieldInfo)member;
-    //                var activeC = field.CustomAttributes.SingleOrDefault(a => a.AttributeType == typeof(ActiveComponentAttribute));
-    //                if (activeC != null) {
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
-
-    //internal class ComponentFabric
-    //{
-    //    public static IComponent Create(ActiveComponentAttribute activeComponent, FieldInfo fieldInfo)
-    //    {
-    //        if (activeComponent.partial)
-    //        {
-    //        }
-    //        return new Component(activeComponent.name, activeComponent.partial, null);
-    //    }
-    //}
-
-    //internal class Data : IData
-    //{
-    //    public event IData.OnDataChangeDelegate OnDataChange;
-
-    //    public event IData.OnDestroyDelegate OnDestroy;
-
-    //    private SyncDataContainer _container;
-
-    //    public Data(SyncDataContainer container)
-    //    {
-    //        _container = container;
-    //    }
-
-    //    public void ChangeRequest(string name, object value)
-    //    {
-    //        _container.ChangeData(name, value);
-    //    }
-    //}
-
-    //internal class ArrayComponent : Component
-    //{
-    //}
-
-    //internal abstract class Component : IComponent
-    //{
-    //    private bool _read;
-    //    private bool _write;
-    //    private readonly string _name;
-    //    private readonly bool _partial;
-    //    private readonly IComponent[] _components;
-
-    //    public bool IsReadable => _read;
-
-    //    public bool IsWritable => _write;
-
-    //    public string Name => _name;
-
-    //    public bool IsPartial => _partial;
-
-    //    public IEnumerable<IComponent> Components => _components;
-
-    //    internal Component(string name, bool partial, IComponent[] components)
-    //    {
-    //        _name = name;
-    //        _partial = partial;
-    //        _components = components;
-    //    }
-
-    //    internal void UpdateRights(bool read, bool write)
-    //    {
-    //        _read = read;
-    //        _write = write;
-    //    }
-    //}
 }
 
 namespace LevelNet.Tests
@@ -161,7 +55,8 @@ namespace LevelNet.Tests
 
         public object Clone()
         {
-            return new GameBlocksState() {
+            return new GameBlocksState()
+            {
                 size = size,
                 colors = (Color[])colors.Clone()
             };
@@ -195,6 +90,15 @@ namespace LevelNet.Tests
         [SerializeField]
         private Color _waitColor = Color.gray;
 
+        public Color PaintColor
+        {
+            get => _paintColor;
+            set
+            {
+                _paintColor = value;
+            }
+        }
+
         private readonly Dictionary<Vector2Int, Color> _colorChanges = new();
         private Vector2Int _currentSize;
         private IData _data;
@@ -213,8 +117,10 @@ namespace LevelNet.Tests
             _currentSize = size;
 
             int counter = 0;
-            for (int x = 0; x < size.x; x++) {
-                for (int y = 0; y < size.y; y++) {
+            for (int x = 0; x < size.x; x++)
+            {
+                for (int y = 0; y < size.y; y++)
+                {
                     var block = Instantiate(_blockPrefab, transform);
                     block.transform.SetLocalPositionAndRotation(
                         new Vector3(
@@ -232,24 +138,31 @@ namespace LevelNet.Tests
 
         public void ChangeBlockColor(Vector2Int coord, Color color)
         {
-            if (_colorChanges.ContainsKey(coord)) {
+            if (_colorChanges.ContainsKey(coord))
+            {
                 _colorChanges[coord] = color;
-            } else {
+            }
+            else
+            {
                 _colorChanges.Add(coord, color);
             }
         }
 
         private void ProcessColorChange(float deltaTime)
         {
-            foreach (var key in _colorChanges.Keys.ToArray()) {
+            foreach (var key in _colorChanges.Keys.ToArray())
+            {
                 Color targetColor = _colorChanges[key];
                 GameObject block = _blocks[key];
                 Color newColor = Color.Lerp(block.GetComponent<Renderer>().material.color, targetColor, deltaTime * _colorChangeSpeed);
                 Color delta = newColor - targetColor;
                 float distance = Mathf.Abs(delta.r) + Mathf.Abs(delta.g) + Mathf.Abs(delta.b);
-                if (distance > 0.01f) {
+                if (distance > 0.01f)
+                {
                     block.GetComponent<Renderer>().material.color = newColor;
-                } else {
+                }
+                else
+                {
                     block.GetComponent<Renderer>().material.color = targetColor;
                     _colorChanges.Remove(key);
                 }
@@ -258,7 +171,8 @@ namespace LevelNet.Tests
 
         private void DeleteBlocks()
         {
-            foreach (var block in _blocks.Values.ToArray()) {
+            foreach (var block in _blocks.Values.ToArray())
+            {
                 Destroy(block);
             }
 
@@ -275,10 +189,28 @@ namespace LevelNet.Tests
             IData.OnDataChangeDelegate onDataChange = null;
             IData.OnDestroyDelegate onDestroy = null;
 
-            onDataChange = (info) => {
+            onDataChange = (info) =>
+            {
+                Debug.Log("Data changes:");
+                foreach (var elem in info.dataChangeElements)
+                {
+                    Debug.Log($"This is {elem.name} with {elem.value}");
+                    string[] nameParts = elem.name.Split('/');
+                    if (nameParts.Length == 2 && nameParts[0] == "Color")
+                    {
+                        Color color = (Color)elem.value;
+                        Vector2Int coord = PlainToIndex2D(int.Parse(nameParts[1]));
+                        ChangeBlockColor(coord, color);
+                    }
+                    else
+                    {
+                        throw new NotImplementedException();
+                    }
+                }
             };
 
-            onDestroy = () => {
+            onDestroy = () =>
+            {
                 data.OnDataChange -= onDataChange;
                 data.OnDestroy -= onDestroy;
             };
@@ -295,7 +227,8 @@ namespace LevelNet.Tests
             Regex regex = new(@"Block_(\d+)_(\d+)");
 
             var match = regex.Match(target.name);
-            if (match.Success) {
+            if (match.Success)
+            {
                 Vector2Int coord = new(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value));
                 _data.ChangeRequest($"Color/{Index2DToPlain(coord)}", _paintColor);
             }
@@ -303,10 +236,25 @@ namespace LevelNet.Tests
 
         private int Index2DToPlain(Vector2Int coord)
         {
-            if (coord.x >= _currentSize.x || coord.y >= _currentSize.y) {
+            if (coord.x >= _currentSize.x || coord.y >= _currentSize.y)
+            {
                 throw new ArgumentException(coord.ToString());
             }
             return coord.y * _currentSize.x + coord.x;
+        }
+
+        private Vector2Int PlainToIndex2D(int plain)
+        {
+            Vector2Int coord = new Vector2Int()
+            {
+                x = plain % _currentSize.x,
+                y = plain / _currentSize.y
+            };
+            if (coord.x < 0 || coord.x >= _currentSize.x || coord.y < 0 || coord.y >= _currentSize.y)
+            {
+                throw new ArgumentException(plain.ToString());
+            }
+            return coord;
         }
 
 #if UNITY_EDITOR

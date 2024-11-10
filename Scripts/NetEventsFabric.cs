@@ -23,6 +23,8 @@ namespace LevelNet
         bool IsServer { get; }
         bool IsClient { get; }
 
+        ulong ClientId { get; }
+
         StartAsServerDelegate OnStartAsServer { get; set; }
         StartAsClientDelegate OnStartAsClient { get; set; }
         DataCreatedDelegate OnDataCreated { get; set; }

@@ -89,7 +89,7 @@ namespace LevelNet.Netcode
         {
             // Deserialize data as usuial
             FastBufferReader unpackedReader = new(_unpackedData, Unity.Collections.Allocator.Temp, _unpackedData.Length, 0);
-            NetcodeStaticSerializer.Instance.PartialDeserialize(asServer ? container.ServerState : container.ClientState, container.DirtyFlags, unpackedReader);
+            NetcodeStaticSerializer.Instance.PartialDeserialize(container.ServerState, container.DirtyFlags, unpackedReader);
         }
 
         private void Read(FastBufferReader packedReader)

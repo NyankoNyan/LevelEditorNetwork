@@ -10,7 +10,6 @@ namespace LevelNet.Data
     {
         public int Id => _id;
         private int _id;
-        private SyncUpdateRule _updateRule;
         private object _serverStateData;
         private object _clientStateData;
         private DirtyFlags _dirtyFlags;
@@ -66,6 +65,7 @@ namespace LevelNet.Data
             OnDataChange?.Invoke(new() {
                 dataChangeElements = changes
             });
+            DirtyFlags.ApplyChanges();
         }
 
         private List<DataChangeElement> CollectServerChanges()

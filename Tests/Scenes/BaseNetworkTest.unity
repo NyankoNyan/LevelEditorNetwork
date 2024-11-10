@@ -401,7 +401,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _startAsHost: 1
-  _playersCount: 1
+  _playersCount: 5
   _buildPath: D:\Projects\Prototypes\Platformer\Build\WinTest
   _scenePath: Assets/LevelEditorNetwork/Tests/Scenes/BaseNetworkTest.unity
 --- !u!4 &1147651650
@@ -431,6 +431,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1bbc57d52a7e556448c124ef177c8f2b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _clientsColors:
+  - {r: 1, g: 0, b: 0, a: 1}
+  - {r: 0, g: 0, b: 1, a: 1}
+  - {r: 0, g: 1, b: 0, a: 1}
+  - {r: 0, g: 1, b: 1, a: 1}
+  - {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  - {r: 1, g: 0, b: 1, a: 1}
+  _size: {x: 5, y: 5}
 --- !u!1 &1379929393
 GameObject:
   m_ObjectHideFlags: 0
@@ -476,7 +484,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _blockPrefab: {fileID: 390372314182756218, guid: 23057321e5483f244ab60ea5d4b6069c, type: 3}
-  _physicalSize: {x: 5, y: 5}
+  _physicalSize: {x: 7, y: 7}
   _colorChangeSpeed: 1
   _paintColor: {r: 1, g: 0, b: 0, a: 1}
   _waitColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}

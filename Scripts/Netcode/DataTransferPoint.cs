@@ -51,7 +51,7 @@ namespace LevelNet.Netcode
             NetEventsFabric.Create().RegDataOnClient(compData.Data, dataId);
         }
 
-        [ServerRpc]
+        [ServerRpc(RequireOwnership =false)]
         public void SendChangesToServer_ServerRpc(CompressedContainerChanges data, int dataId, ServerRpcParams rpcParams = default)
         {
             //TODO validate changes
