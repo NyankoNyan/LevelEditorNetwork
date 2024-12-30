@@ -2,6 +2,8 @@ using Unity.Netcode;
 using UnityEngine;
 using System.Linq;
 using System.Diagnostics;
+using UnityEngine.Events;
+
 
 #if UNITY_EDITOR
 
@@ -25,10 +27,14 @@ namespace LevelNet.Tests
         [SerializeField]
         private string _scenePath = "Assets/LevelEditorNetwork/Tests/Scenes/BaseNetworkTest.unity";
 
+        [SerializeField]
+        private UnityEvent _afterInitEvent;
+
         private void Start()
         {
             Init();
-            FindAnyObjectByType<GameInitializer>().Init();
+            _afterInitEvent?.Invoke();
+            //FindAnyObjectByType<GameInitializer>().Init();
         }
 
 #if UNITY_EDITOR
